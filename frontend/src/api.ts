@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import type { GameState } from "@katrekat/game-core";
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 
 export type Profile = {
   id: string;

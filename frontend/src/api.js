@@ -1,4 +1,4 @@
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:4000";
+const apiBaseUrl = (import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 export async function getProfile(session) {
     const response = await apiRequest("/auth/me", { session });
     return response.profile;
