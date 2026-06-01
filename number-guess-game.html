@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Number Guess — Multiplayer</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#E8E4F0;min-height:100vh;display:flex;justify-content:center;align-items:flex-start;padding:20px 0 40px}
+
+.wrap{display:flex;justify-content:center;padding:20px 0 28px}
+
+.phone{
+  width:345px;min-height:700px;
+  background:#fff;
+  border-radius:40px;
+  border:2px solid #DDD9F7;
+  overflow:hidden;
+  display:flex;flex-direction:column;
+  box-shadow:0 0 0 6px #EEEDFE;
+}
+
+.sbar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:12px 22px 6px;
+  background:linear-gradient(135deg,#534AB7 0%,#7F77DD 100%);
+}
+.sbar-time{font-size:12px;font-weight:500;color:#EEEDFEcc}
+.sbar-icons{font-size:12px;color:#EEEDFE99}
+
+.notch-row{
+  background:linear-gradient(135deg,#534AB7 0%,#7F77DD 100%);
+  display:flex;justify-content:center;padding-bottom:10px;
+}
+.notch{width:80px;height:20px;background:#F5F3FF;border-radius:0 0 14px 14px}
+
+.app-body{flex:1;background:#F5F3FF;display:flex;flex-direction:column;overflow:hidden}
+
+.screen{display:none;flex-direction:column;flex:1}
+.screen.active{display:flex}
+
+.hdr{
+  background:linear-gradient(135deg,#534AB7 0%,#7F77DD 100%);
+  padding:16px 18px 20px;
+}
+.hdr-title{font-size:20px;font-weight:500;color:#fff;letter-spacing:.2px}
+.hdr-sub{font-size:12px;color:#EEEDFE99;margin-top:3px}
+.hdr-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  background:#ffffff22;border-radius:20px;
+  padding:4px 10px;margin-top:8px;
+  font-size:11px;color:#FFFFFFCC;
+}
+
+.scroll{flex:1;overflow-y:auto;padding:14px 14px 10px}
+.scroll::-webkit-scrollbar{width:0}
+
+.card{
+  background:#fff;border:0.5px solid #DDD9F7;
+  border-radius:16px;padding:14px;margin-bottom:10px;
+}
+
+.sec-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#AFA9EC;font-weight:500;margin-bottom:8px}
+
+.range-wrap{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:8px}
+.rchip{
+  padding:9px 6px;border-radius:10px;
+  border:1.5px solid #DDD9F7;
+  background:#F5F3FF;
+  font-size:12px;font-weight:500;color:#8880C4;
+  cursor:pointer;text-align:center;transition:all .14s;
+}
+.rchip:hover{border-color:#7F77DD;color:#534AB7;background:#EEEDFE}
+.rchip.sel{background:#534AB7;border-color:#534AB7;color:#fff}
+
+.prow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:.5px solid #EDE9FF}
+.prow:last-child{border-bottom:none}
+.av{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;flex-shrink:0}
+.av0{background:#EEEDFE;color:#3C3489}.av1{background:#E1F5EE;color:#085041}
+.av2{background:#FAECE7;color:#712B13}.av3{background:#FBEAF0;color:#72243E}
+.av4{background:#E6F1FB;color:#0C447C}.av5{background:#EAF3DE;color:#27500A}
+.av6{background:#FAEEDA;color:#633806}.av7{background:#FCEBEB;color:#791F1F}
+.pn{font-size:13px;font-weight:500;color:#26215C;flex:1}
+.pm{font-size:11px;color:#AFA9EC}
+
+.inp{
+  width:100%;height:40px;padding:0 12px;
+  border:1.5px solid #DDD9F7;border-radius:12px;
+  font-size:14px;color:#26215C;background:#F5F3FF;
+  outline:none;margin-bottom:8px;
+}
+.inp:focus{border-color:#7F77DD;background:#fff;box-shadow:0 0 0 3px #EEEDFE}
+.inp::placeholder{color:#C9C2EE}
+
+.btn-row{display:flex;gap:8px}
+.btn{height:40px;border-radius:12px;border:none;font-size:13px;font-weight:500;cursor:pointer;transition:all .14s}
+.btn:active{transform:scale(0.97)}
+.btn-pri{background:#534AB7;color:#fff;flex:1}
+.btn-pri:hover{background:#3C3489}
+.btn-sec{background:#EEEDFE;color:#534AB7;padding:0 16px}
+.btn-sec:hover{background:#C9C2EE}
+.btn-full{width:100%}
+
+.bottom{background:#fff;border-top:.5px solid #DDD9F7;padding:12px 14px}
+
+.err{font-size:12px;color:#A32D2D;min-height:16px;margin-top:4px}
+.ok{font-size:12px;color:#0F6E56;min-height:16px;margin-top:4px;font-weight:500}
+
+.turn-card{
+  background:linear-gradient(135deg,#534AB7,#7F77DD);
+  border-radius:14px;padding:12px 14px;
+  display:flex;align-items:center;gap:10px;
+  margin-bottom:10px;
+}
+.turn-av{width:32px;height:32px;border-radius:50%;background:#ffffff33;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:500;color:#fff;flex-shrink:0}
+.turn-label{font-size:11px;color:#EEEDFE99}
+.turn-name{font-size:14px;font-weight:500;color:#fff}
+
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.stat{background:#EEEDFE;border-radius:12px;padding:10px 6px;text-align:center}
+.stat-n{font-size:20px;font-weight:500;color:#3C3489}
+.stat-l{font-size:10px;color:#8880C4;margin-top:1px;letter-spacing:.04em}
+
+.strip{display:flex;gap:5px;overflow-x:auto;margin-bottom:10px;padding-bottom:2px}
+.strip::-webkit-scrollbar{height:0}
+.chip{display:flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;border:.5px solid #DDD9F7;background:#fff;font-size:11px;color:#AFA9EC;white-space:nowrap;flex-shrink:0}
+.chip.cur{background:#534AB7;border-color:#534AB7;color:#fff;font-weight:500}
+.chip.done{opacity:.35;text-decoration:line-through}
+.chip-av{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:500;background:#ffffff33;color:inherit}
+
+.num-grid{display:grid;gap:5px;margin:8px 0}
+.nb{
+  aspect-ratio:1;border-radius:10px;
+  font-size:11px;font-weight:500;
+  display:flex;align-items:center;justify-content:center;
+  background:#F5F3FF;border:1.5px solid #DDD9F7;
+  color:#8880C4;cursor:pointer;transition:all .12s;
+  user-select:none;
+}
+.nb:hover{background:#EEEDFE;border-color:#7F77DD;color:#534AB7;transform:scale(1.1)}
+.nb:active{transform:scale(0.9)}
+.nb.gone{visibility:hidden;pointer-events:none}
+
+.tabs{display:flex;background:#fff;border-bottom:.5px solid #DDD9F7}
+.tb{flex:1;padding:10px;border:none;background:transparent;font-size:12px;color:#AFA9EC;cursor:pointer;border-bottom:2px solid transparent;font-weight:500;transition:all .12s}
+.tb.active{color:#534AB7;border-bottom:2px solid #534AB7}
+
+.log-item{font-size:12px;padding:7px 0;border-bottom:.5px solid #EDE9FF;color:#AFA9EC}
+.log-item:last-child{border-bottom:none}
+.log-hit{color:#0F6E56}.log-miss{color:#8880C4}
+
+.badge{display:inline-block;font-size:10px;font-weight:500;padding:3px 9px;border-radius:20px}
+.bw{background:#E1F5EE;color:#085041}.bl{background:#FCEBEB;color:#791F1F}.ba{background:#EEEDFE;color:#3C3489}
+
+.shield{background:#EEEDFE;border:2px solid #7F77DD;border-radius:16px;padding:22px;text-align:center;margin:10px 0}
+.shield-ico{font-size:32px;color:#534AB7}
+.shield-txt{font-size:14px;font-weight:500;color:#3C3489;margin-top:6px}
+.shield-sub{font-size:12px;color:#8880C4;margin-top:4px}
+
+.result-box{border-radius:16px;padding:16px;margin-bottom:10px;text-align:center}
+.res-win{background:#E1F5EE;border:.5px solid #9FE1CB}
+.res-lose{background:#FCEBEB;border:.5px solid #F7C1C1}
+.res-name{font-size:15px;font-weight:500;margin-top:8px}
+.res-sub{font-size:11px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="phone">
+
+  <div class="sbar">
+    <span class="sbar-time">9:41</span>
+    <span class="sbar-icons">&#9679;&#9679;&#9679;</span>
+  </div>
+  <div class="notch-row"><div class="notch"></div></div>
+
+  <div class="app-body">
+
+    <!-- SETUP -->
+    <div class="screen active" id="s-setup">
+      <div class="hdr">
+        <div class="hdr-title">Number Guess</div>
+        <div class="hdr-sub">Pick a range · set secrets · survive!</div>
+        <div class="hdr-pill"><i class="ti ti-users"></i> Multiplayer round robin</div>
+      </div>
+      <div class="scroll">
+        <div class="card" style="margin-top:4px">
+          <div class="sec-lbl">Choose number range</div>
+          <div class="range-wrap" id="range-chips"></div>
+          <div style="font-size:11px;color:#AFA9EC">Selected: <span id="rdisplay" style="color:#534AB7;font-weight:500">None</span></div>
+        </div>
+        <div class="card">
+          <div class="sec-lbl">Players (2 – 8)</div>
+          <div id="plist" style="margin-bottom:10px"></div>
+          <div class="btn-row">
+            <input class="inp" id="pname" placeholder="Player name" style="margin:0;flex:1"/>
+            <button class="btn btn-sec" onclick="addP()" style="flex-shrink:0">Add</button>
+          </div>
+          <div class="err" id="serr"></div>
+        </div>
+      </div>
+      <div class="bottom">
+        <button class="btn btn-pri btn-full" onclick="goSecret()">Start Game <i class="ti ti-arrow-right"></i></button>
+      </div>
+    </div>
+
+    <!-- SECRET -->
+    <div class="screen" id="s-secret">
+      <div class="hdr">
+        <div class="hdr-title">Secret Number</div>
+        <div class="hdr-sub" id="sec-prog"></div>
+      </div>
+      <div class="scroll" style="padding-top:14px">
+        <div class="turn-card">
+          <div class="turn-av" id="sec-av-el"></div>
+          <div>
+            <div class="turn-label">Your turn to set a secret</div>
+            <div class="turn-name" id="sec-name-el"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="sec-lbl">Enter your secret (1 – <span id="sec-rng"></span>)</div>
+          <p style="font-size:12px;color:#AFA9EC;margin-bottom:10px">Others look away — pick a number nobody else has chosen.</p>
+          <input class="inp" type="number" id="sec-in" placeholder="Your secret number"/>
+          <div class="err" id="secerr"></div>
+        </div>
+        <div id="shield-wrap" style="display:none">
+          <div class="shield">
+            <i class="ti ti-lock shield-ico"></i>
+            <div class="shield-txt">Locked in!</div>
+            <div class="shield-sub" id="shield-msg"></div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom">
+        <button class="btn btn-pri btn-full" onclick="saveSecret()"><i class="ti ti-lock"></i> Lock In</button>
+      </div>
+    </div>
+
+    <!-- GUESS -->
+    <div class="screen" id="s-guess">
+      <div class="hdr">
+        <div class="hdr-title">Guess Phase</div>
+        <div class="hdr-sub" id="g-sub"></div>
+      </div>
+      <div class="tabs">
+        <button class="tb active" onclick="switchTab('board',0)"><i class="ti ti-layout-grid"></i> Board</button>
+        <button class="tb" onclick="switchTab('log',1)"><i class="ti ti-history"></i> Log</button>
+        <button class="tb" onclick="switchTab('players',2)"><i class="ti ti-users"></i> Players</button>
+      </div>
+
+      <div class="scroll" id="tab-board-content">
+        <div class="stat-row" id="stats"></div>
+        <div class="turn-card" id="g-banner">
+          <div class="turn-av" id="g-av"></div>
+          <div>
+            <div class="turn-label">Pick any number from the board</div>
+            <div class="turn-name" id="g-name"></div>
+          </div>
+        </div>
+        <div class="strip" id="turn-strip"></div>
+        <div class="card" style="padding:12px">
+          <div class="sec-lbl">Number board</div>
+          <div class="num-grid" id="ngrid"></div>
+        </div>
+        <div class="ok" id="gok"></div>
+        <div class="err" id="gerr"></div>
+      </div>
+
+      <div class="scroll" id="tab-log-content" style="display:none">
+        <div class="card">
+          <div class="sec-lbl">Game log</div>
+          <div id="glog"><p style="font-size:12px;color:#C9C2EE;padding:4px 0">No guesses yet.</p></div>
+        </div>
+      </div>
+
+      <div class="scroll" id="tab-players-content" style="display:none">
+        <div class="card">
+          <div class="sec-lbl">All players</div>
+          <div id="slist"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div class="screen" id="s-result">
+      <div class="hdr">
+        <div class="hdr-title">Game Over!</div>
+        <div class="hdr-sub">Here are your final results</div>
+      </div>
+      <div class="scroll" style="padding-top:14px"><div id="rlist"></div></div>
+      <div class="bottom">
+        <button class="btn btn-pri btn-full" onclick="resetGame()"><i class="ti ti-refresh"></i> Play Again</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+const RANGES=[10,20,30,40,50,60,70,80,90,100];
+const AVC=['av0','av1','av2','av3','av4','av5','av6','av7'];
+let range=0,players=[],secIdx=0,turn=0,board=[],logs=[];
+const $=id=>document.getElementById(id);
+
+function initChips(){
+  const c=$('range-chips');c.innerHTML='';
+  RANGES.forEach(r=>{
+    const b=document.createElement('button');
+    b.className='rchip';b.textContent=`1 – ${r}`;
+    b.onclick=()=>{
+      range=r;
+      document.querySelectorAll('.rchip').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');
+      $('rdisplay').textContent=`1 to ${r}`;
+    };
+    c.appendChild(b);
+  });
+}
+
+function addP(){
+  const n=$('pname').value.trim();$('serr').textContent='';
+  if(!n){$('serr').textContent='Enter a name.';return;}
+  if(players.find(p=>p.name.toLowerCase()===n.toLowerCase())){$('serr').textContent='Name already taken.';return;}
+  if(players.length>=8){$('serr').textContent='Max 8 players.';return;}
+  players.push({name:n,secret:null,guessedBy:null,hits:0});
+  $('pname').value='';renderPList();
+}
+
+function removeP(i){players.splice(i,1);renderPList();}
+
+function renderPList(){
+  const el=$('plist');
+  if(!players.length){
+    el.innerHTML='<p style="font-size:12px;color:#C9C2EE;padding:6px 0">No players added yet.</p>';
+    return;
+  }
+  el.innerHTML=players.map((p,i)=>`
+    <div class="prow">
+      <div class="av ${AVC[i%8]}">${p.name[0].toUpperCase()}</div>
+      <span class="pn">${p.name}</span>
+      <button onclick="removeP(${i})" style="background:#FCEBEB;border:none;border-radius:8px;padding:4px 9px;font-size:11px;color:#A32D2D;cursor:pointer">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>`).join('');
+}
+
+function goSecret(){
+  $('serr').textContent='';
+  if(!range){$('serr').textContent='Please choose a number range.';return;}
+  if(players.length<2){$('serr').textContent='Add at least 2 players.';return;}
+  secIdx=0;showScreen('s-secret');updateSecUI();
+}
+
+function updateSecUI(){
+  const p=players[secIdx];
+  $('sec-prog').textContent=`Player ${secIdx+1} of ${players.length}`;
+  $('sec-name-el').textContent=p.name;
+  $('sec-av-el').textContent=p.name[0].toUpperCase();
+  $('sec-rng').textContent=range;
+  $('sec-in').value='';$('sec-in').min=1;$('sec-in').max=range;
+  $('secerr').textContent='';$('shield-wrap').style.display='none';
+}
+
+function saveSecret(){
+  const v=parseInt($('sec-in').value);$('secerr').textContent='';
+  if(!v||v<1||v>range){$('secerr').textContent=`Enter a number between 1 and ${range}.`;return;}
+  if(players.find((p,i)=>i!==secIdx&&p.secret===v)){$('secerr').textContent='Already taken! Choose another.';return;}
+  players[secIdx].secret=v;$('sec-in').value='';
+  $('shield-wrap').style.display='block';
+  if(secIdx<players.length-1){
+    $('shield-msg').textContent=`Pass device to ${players[secIdx+1].name}`;
+    setTimeout(()=>{secIdx++;updateSecUI();},1700);
+  } else {
+    $('shield-msg').textContent='All secrets locked — starting game!';
+    setTimeout(startGuess,1700);
+  }
+}
+
+function startGuess(){
+  turn=0;logs=[];
+  board=Array.from({length:range},(_,i)=>({n:i+1,gone:false}));
+  showScreen('s-guess');renderGuess();
+}
+
+function renderGuess(){
+  renderStats();renderBanner();renderStrip();renderGrid();renderSList();
+  $('gok').textContent='';$('gerr').textContent='';
+}
+
+function renderStats(){
+  const left=board.filter(b=>!b.gone).length;
+  const found=players.filter(p=>p.guessedBy).length;
+  $('stats').innerHTML=`
+    <div class="stat"><div class="stat-n">${left}</div><div class="stat-l">Left</div></div>
+    <div class="stat"><div class="stat-n">${found}</div><div class="stat-l">Found</div></div>
+    <div class="stat"><div class="stat-n">${players.length-found}</div><div class="stat-l">Hiding</div></div>`;
+}
+
+function renderBanner(){
+  const p=players[turn];
+  $('g-av').textContent=p.name[0].toUpperCase();
+  $('g-name').textContent=`${p.name}'s turn`;
+  $('g-sub').textContent=`Range 1–${range}`;
+}
+
+function renderStrip(){
+  $('turn-strip').innerHTML=players.map((p,i)=>`
+    <div class="chip${i===turn?' cur':''}${p.guessedBy?' done':''}">
+      <div class="chip-av">${p.name[0].toUpperCase()}</div>${p.name}
+    </div>`).join('');
+}
+
+function renderGrid(){
+  const g=$('ngrid');
+  const cols=range<=20?5:range<=50?8:10;
+  g.style.gridTemplateColumns=`repeat(${cols},minmax(0,1fr))`;
+  g.innerHTML='';
+  board.forEach(cell=>{
+    const b=document.createElement('div');
+    b.className='nb'+(cell.gone?' gone':'');
+    b.textContent=cell.gone?'':cell.n;
+    if(!cell.gone)b.onclick=()=>pickNum(cell.n);
+    g.appendChild(b);
+  });
+}
+
+function pickNum(num){
+  $('gok').textContent='';$('gerr').textContent='';
+  const p=players[turn];
+  const cell=board.find(c=>c.n===num);if(!cell||cell.gone)return;
+  cell.gone=true;
+  const matched=players.find(t=>t!==p&&t.secret===num&&!t.guessedBy);
+  let msg='',isHit=false;
+  if(matched){
+    matched.guessedBy=p.name;p.hits++;isHit=true;
+    msg=`${p.name} found ${matched.name}'s secret: ${num}!`;
+    $('gok').textContent=msg;
+  } else if(p.secret===num){
+    msg=`${p.name} hit their own number ${num} — removed.`;
+    $('gerr').textContent=msg;
+  } else {
+    msg=`${p.name} picked ${num} — no match. Removed.`;
+    $('gerr').textContent=msg;
+  }
+  logs.push({guesser:p.name,num,hit:isHit,msg});
+  addLog(logs[logs.length-1]);
+  renderGrid();renderStats();renderSList();renderStrip();
+  if(checkEnd())return;
+  setTimeout(()=>{
+    turn=(turn+1)%players.length;
+    $('gok').textContent='';$('gerr').textContent='';
+    if(board.filter(c=>!c.gone).length===0){showResults();return;}
+    renderBanner();renderStrip();
+  },1100);
+}
+
+function checkEnd(){
+  const alive=players.filter(p=>!p.guessedBy);
+  if(alive.length<=1||board.filter(c=>!c.gone).length===0){
+    setTimeout(showResults,1300);return true;
+  }
+  return false;
+}
+
+function addLog(e){
+  const el=$('glog');
+  if(el.querySelector('p'))el.innerHTML='';
+  const d=document.createElement('div');
+  d.className=`log-item ${e.hit?'log-hit':'log-miss'}`;
+  d.textContent=e.msg;
+  el.prepend(d);
+}
+
+function renderSList(){
+  $('slist').innerHTML=players.map((p,i)=>`
+    <div class="prow">
+      <div class="av ${AVC[i%8]}">${p.name[0].toUpperCase()}</div>
+      <div style="flex:1">
+        <div class="pn">${p.name}</div>
+        <div class="pm">${p.guessedBy?`Found by ${p.guessedBy} · #${p.secret}`:'Still hiding'}</div>
+      </div>
+      ${p.guessedBy?`<span class="badge bw">Winner</span>`:`<span class="badge ba">Hiding</span>`}
+    </div>`).join('');
+}
+
+function showResults(){
+  showScreen('s-result');
+  const survivors=players.filter(p=>!p.guessedBy);
+  const found=players.filter(p=>p.guessedBy);
+  let html='';
+  found.forEach(p=>{
+    const i=players.indexOf(p);
+    html+=`<div class="result-box res-win">
+      <div class="av ${AVC[i%8]}" style="width:46px;height:46px;font-size:18px;margin:0 auto">${p.name[0].toUpperCase()}</div>
+      <div class="res-name" style="color:#085041">${p.name}</div>
+      <div class="res-sub" style="color:#1D9E75">Secret ${p.secret} was found · ${p.hits} hit${p.hits!==1?'s':''}</div>
+      <span class="badge bw" style="margin-top:10px;display:inline-block;font-size:11px;padding:5px 14px">Winner / Safe Zone</span>
+    </div>`;
+  });
+  survivors.forEach(p=>{
+    const i=players.indexOf(p);
+    html+=`<div class="result-box res-lose">
+      <div class="av ${AVC[i%8]}" style="width:46px;height:46px;font-size:18px;margin:0 auto;opacity:.7">${p.name[0].toUpperCase()}</div>
+      <div class="res-name" style="color:#791F1F">${p.name}</div>
+      <div class="res-sub" style="color:#A32D2D">Secret ${p.secret} — nobody guessed it</div>
+      <span class="badge bl" style="margin-top:10px;display:inline-block;font-size:11px;padding:5px 14px">Loser</span>
+    </div>`;
+  });
+  if(!html)html='<div class="card" style="text-align:center"><p style="font-size:13px;color:#AFA9EC">Board cleared — no outcome!</p></div>';
+  $('rlist').innerHTML=html;
+}
+
+function resetGame(){
+  players=players.map(p=>({...p,secret:null,guessedBy:null,hits:0}));
+  range=0;board=[];logs=[];turn=0;
+  document.querySelectorAll('.rchip').forEach(x=>x.classList.remove('sel'));
+  $('rdisplay').textContent='None';
+  renderPList();showScreen('s-setup');
+}
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+function switchTab(name,idx){
+  ['board','log','players'].forEach((t,i)=>{
+    document.getElementById(`tab-${t}-content`).style.display=i===idx?'block':'none';
+  });
+  document.querySelectorAll('.tb').forEach((b,i)=>{
+    b.classList.toggle('active',i===idx);
+  });
+}
+
+initChips();
+renderPList();
+</script>
+</body>
+</html>

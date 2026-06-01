@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "paths": {
+      "@katrekat/game-core": [
+        "../shared/game-core/src/index.ts"
+      ]
+    }
+  },
+  "include": [
+    "src"
+  ]
+}
