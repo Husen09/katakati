@@ -1,0 +1,10 @@
+[build]
+  command = "npm --workspace frontend run build"
+  publish = "frontend/dist"
+  base = ""
+
+# Redirect all SPA requests back to index.html for React routing
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

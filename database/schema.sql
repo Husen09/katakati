@@ -36,9 +36,10 @@ create table if not exists game_players (
   hits integer not null default 0,
   created_at timestamptz not null default now(),
   unique (game_id, player_order),
-  unique (game_id, lower(name)),
   unique (game_id, secret_number)
 );
+
+create unique index if not exists idx_game_players_game_id_lower_name on game_players(game_id, lower(name));
 
 create table if not exists game_board_cells (
   id uuid primary key default gen_random_uuid(),
