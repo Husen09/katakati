@@ -222,6 +222,36 @@ button:disabled {
   font-weight: 600;
 }
 
+.chat-list {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.chat-item {
+  background: #f8f8f4;
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.chat-item p {
+  margin: 6px 0 0;
+  color: #334155;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.chat-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #5b6676;
+  font-size: 13px;
+}
+
 .message {
   margin-top: 16px;
   font-weight: 600;

@@ -52,6 +52,15 @@ export type ViewerGame = {
   updatedAt: string;
 };
 
+export type RoomMessage = {
+  id: string;
+  gameId: string;
+  userId: string;
+  playerName: string;
+  messageText: string;
+  createdAt: string;
+};
+
 type UpdateContext = {
   game: GameRow;
   participant: GameParticipant;
@@ -217,6 +226,73 @@ export async function resetGameForHost(gameId: string, userId: string): Promise<
 
     return resetGame(state);
   });
+}
+
+export async function listRoomMessagesForUser(gameId: string, userId: string): Promise<RoomMessage[]> {
+  const game = await readGame(gameId);
+  ensureParticipant(game, userId);
+
+  const { data, error } = await supabaseAdmin
+    .from("room_messages")
+    .select("id, game_id, user_id, player_name, message_text, created_at")
+    .eq("game_id", gameId)
+    .order("created_at", { ascending: true })
+    .limit(100);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? []).map((entry) => ({
+    id: entry.id,
+    gameId: entry.game_id,
+    userId: entry.user_id,
+    playerName: entry.player_name,
+    messageText: entry.message_text,
+    createdAt: entry.created_at
+  }));
+}
+
+export async function sendRoomMessageForUser(
+  gameId: string,
+  userId: string,
+  messageInput: string
+): Promise<RoomMessage> {
+  const game = await readGame(gameId);
+  const participant = ensureParticipant(game, userId);
+  const messageText = messageInput.trim();
+
+  if (!messageText) {
+    throw new Error("Enter a chat message.");
+  }
+
+  if (messageText.length > 500) {
+    throw new Error("Chat messages must be 500 characters or less.");
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("room_messages")
+    .insert({
+      game_id: gameId,
+      user_id: userId,
+      player_name: participant.displayName,
+      message_text: messageText
+    })
+    .select("id, game_id, user_id, player_name, message_text, created_at")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Unable to send the message.");
+  }
+
+  return {
+    id: data.id,
+    gameId: data.game_id,
+    userId: data.user_id,
+    playerName: data.player_name,
+    messageText: data.message_text,
+    createdAt: data.created_at
+  };
 }
 
 export function requireHost(context: UpdateContext) {

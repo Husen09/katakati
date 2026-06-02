@@ -1,7 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { RANGES, getResults, type GameState } from "@katrekat/game-core";
 import type { Session } from "@supabase/supabase-js";
-import { createGame, getGame, getProfile, joinGame, listGames, resetGame, startGame, submitGuess, submitSecret, type GameSummary, type Profile, type ViewerGame, updateRange } from "./api";
+import {
+  createGame,
+  getGame,
+  getProfile,
+  joinGame,
+  listGames,
+  listRoomMessages,
+  resetGame,
+  sendRoomMessage,
+  startGame,
+  submitGuess,
+  submitSecret,
+  type GameSummary,
+  type Profile,
+  type RoomMessage,
+  type ViewerGame,
+  updateRange
+} from "./api";
 import { supabase } from "./supabase";
 
 type Feedback = { error: string; ok: string };
@@ -19,6 +36,8 @@ export default function App() {
   const [password, setPassword] = useState("");
   const [joinCode, setJoinCode] = useState("");
   const [secretValue, setSecretValue] = useState("");
+  const [chatMessage, setChatMessage] = useState("");
+  const [messages, setMessages] = useState<RoomMessage[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ error: "", ok: "Sign in to create or join a live room." });
@@ -50,6 +69,7 @@ export default function App() {
       setProfile(null);
       setGames([]);
       setActiveGame(null);
+      setMessages([]);
       if (nextSession) {
         void refreshProfile(nextSession, true);
         void refreshGames(nextSession, true);
@@ -68,6 +88,7 @@ export default function App() {
     const interval = window.setInterval(() => {
       void refreshActiveGame(session, activeGame.id, true);
       void refreshGames(session, true);
+      void refreshMessages(session, activeGame.id, true);
     }, 3000);
     return () => window.clearInterval(interval);
   }, [session, activeGame?.id]);
@@ -93,6 +114,14 @@ export default function App() {
   async function refreshActiveGame(currentSession: Session, gameId: string, silent = false) {
     try {
       setActiveGame(await getGame(currentSession, gameId));
+    } catch (error) {
+      if (!silent) setFeedback({ error: errorMessage(error), ok: "" });
+    }
+  }
+
+  async function refreshMessages(currentSession: Session, gameId: string, silent = false) {
+    try {
+      setMessages(await listRoomMessages(currentSession, gameId));
     } catch (error) {
       if (!silent) setFeedback({ error: errorMessage(error), ok: "" });
     }
@@ -140,20 +169,25 @@ export default function App() {
 
   async function handleCreateGame() {
     if (!session) throw new Error("Please sign in first.");
-    setActiveGame(await createGame(session));
+    const game = await createGame(session);
+    setActiveGame(game);
+    await refreshMessages(session, game.id, true);
     await refreshGames(session);
   }
 
   async function handleJoinGame() {
     if (!session) throw new Error("Please sign in first.");
-    setActiveGame(await joinGame(session, joinCode));
+    const game = await joinGame(session, joinCode);
+    setActiveGame(game);
     setJoinCode("");
+    await refreshMessages(session, game.id, true);
     await refreshGames(session);
   }
 
   async function handleOpenGame(gameId: string) {
     if (!session) throw new Error("Please sign in first.");
     await refreshActiveGame(session, gameId);
+    await refreshMessages(session, gameId, true);
   }
 
   async function handleUpdateRange(range: number) {
@@ -189,12 +223,41 @@ export default function App() {
     await refreshGames(session);
   }
 
+  async function handleSendRoomMessage() {
+    if (!session || !activeGame) return;
+    await sendRoomMessage(session, activeGame.id, chatMessage);
+    setChatMessage("");
+    await refreshMessages(session, activeGame.id, true);
+  }
+
+  async function handleShareRoomCode() {
+    if (!activeGame) return;
+
+    if (navigator.share) {
+      await navigator.share({
+        title: "Join my Number Guess room",
+        text: `Use room code ${activeGame.roomCode} to join Number Guess.`
+      });
+      setFeedback({ error: "", ok: "Share sheet opened." });
+      return;
+    }
+
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(activeGame.roomCode);
+      setFeedback({ error: "", ok: "Room code copied." });
+      return;
+    }
+
+    setFeedback({ error: "", ok: `Room code: ${activeGame.roomCode}` });
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
     setGames([]);
     setActiveGame(null);
+    setMessages([]);
     setFeedback({ error: "", ok: "Signed out." });
   }
 
@@ -208,14 +271,13 @@ export default function App() {
         <header className="hero">
           <p className="eyebrow">Online Multiplayer</p>
           <h1>Number Guess</h1>
-          <p className="hero-copy">Live rooms with simple Supabase login, ready for Netlify and Render.</p>
         </header>
 
         {!isSignedIn && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Access</p><h2>{authMode === "login" ? "Sign in" : "Create account"}</h2></div><button className="ghost" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>{authMode === "login" ? "Need an account?" : "Already have an account?"}</button></div><div className="stack compact">{authMode === "signup" && <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" />}<input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" /><button disabled={busy} onClick={() => run(handleAuthSubmit, authMode === "login" ? "Signed in." : "Account created.")}>{authMode === "login" ? "Sign in" : "Create account"}</button></div></div></div>}
 
         {isSignedIn && !activeGame && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Lobby</p><h2>Welcome, {profile?.displayName}</h2></div><button className="ghost" onClick={() => run(handleLogout)}>Sign out</button></div><div className="actions"><button disabled={busy} onClick={() => run(handleCreateGame, "Room created.")}>Create room</button><div className="row"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Room code" /><button disabled={busy} onClick={() => run(handleJoinGame, "Joined room.")}>Join room</button></div></div></div><div className="card"><div className="split"><h2>Your rooms</h2><button className="ghost" disabled={busy} onClick={() => session && run(() => refreshGames(session), "Rooms refreshed.")}>Refresh</button></div>{games.length === 0 && <p className="hero-copy">No rooms yet. Create one or join with a code.</p>}<div className="list">{games.map((game) => <button className="list-item interactive" key={game.id} onClick={() => run(() => handleOpenGame(game.id))}><span><strong>{game.roomCode}</strong></span><span>{game.playerCount} players</span><span>{game.status}</span><span>{game.isHost ? "Host" : "Joined"}</span></button>)}</div></div></div>}
 
-        {isSignedIn && activeGame && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Room</p><h2>{activeGame.roomCode}</h2></div><div className="actions-inline"><button className="ghost" disabled={busy} onClick={() => session && run(() => refreshActiveGame(session, activeGame.id), "Room refreshed.")}>Refresh</button><button className="ghost" onClick={() => setActiveGame(null)}>Back to lobby</button></div></div><p className="hero-copy">Signed in as <strong>{activeGame.viewerName}</strong>. {activeGame.isHost ? "You are the host." : "Waiting on the host for room setup."}</p></div>
+        {isSignedIn && activeGame && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Room</p><h2>{activeGame.roomCode}</h2></div><div className="actions-inline"><button className="ghost" onClick={() => run(handleShareRoomCode)}>Share code</button><button className="ghost" disabled={busy} onClick={() => session && run(async () => { await refreshActiveGame(session, activeGame.id); await refreshMessages(session, activeGame.id, true); }, "Room refreshed.")}>Refresh</button><button className="ghost" onClick={() => { setActiveGame(null); setMessages([]); }}>Back to lobby</button></div></div><p className="hero-copy">Signed in as <strong>{activeGame.viewerName}</strong>. {activeGame.isHost ? "You are the host." : "Waiting on the host for room setup."}</p><p className="hero-copy">Share this room code with friends: <strong>{activeGame.roomCode}</strong></p></div>
 
           {state.status === "setup" && <><div className="card"><div className="split"><h2>Choose range</h2><span className="badge">{state.range ? `1 - ${state.range}` : "Not chosen"}</span></div><div className="range-grid">{RANGES.map((range) => <button key={range} disabled={!activeGame.isHost || busy} className={state.range === range ? "chip chip-active" : "chip"} onClick={() => run(() => handleUpdateRange(range), `Range set to 1 - ${range}.`)}>1 - {range}</button>)}</div></div><div className="card"><div className="split"><h2>Players</h2><span className="badge">{state.players.length}/8</span></div><div className="list">{state.players.map((player, index) => <div className="list-item" key={player.id}><span>{index + 1}. {player.name}</span><span>{player.id === activeGame.viewerPlayerId ? "You" : "Joined"}</span></div>)}</div></div><button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleStartGame, "Secret phase started.")}>Start game</button></>}
 
@@ -224,6 +286,42 @@ export default function App() {
           {state.status === "guess" && activeTurnPlayer && <><div className="card"><h2>Guess phase</h2><p>Current turn: <strong>{activeTurnPlayer.name}</strong></p><p>Range: 1 - {state.range}</p><p className="hero-copy">{isViewerTurnForGuess ? "Pick a number from the board." : `Waiting for ${activeTurnPlayer.name} to move.`}</p></div><div className="card"><h2>Board</h2><div className="board">{state.board.map((cell) => <button key={cell.n} disabled={cell.gone || !isViewerTurnForGuess || busy} className={cell.gone ? "number number-gone" : "number"} onClick={() => run(() => handleSubmitGuess(cell.n))}>{cell.gone ? "" : cell.n}</button>)}</div></div><div className="card"><h2>Players</h2><div className="list">{state.players.map((player) => <div className="list-item" key={player.id}><span>{player.name}</span><span>{player.guessedBy ? `Found by ${player.guessedBy}` : "Still hiding"}</span></div>)}</div></div></>}
 
           {state.status === "result" && <><div className="card"><h2>Results</h2><div className="list">{results.map((result) => <div className="result" key={result.playerId}><strong>{result.playerName}</strong><span>{result.status.toUpperCase()}</span><p>{result.subtitle}</p></div>)}</div></div><button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleResetGame, "Game reset for another round.")}>Play again</button></>}
+
+          <div className="card">
+            <div className="split">
+              <h2>Room chat</h2>
+              <span className="badge">{messages.length} message{messages.length === 1 ? "" : "s"}</span>
+            </div>
+            <div className="chat-list">
+              {messages.length === 0 && <p className="hero-copy">No messages yet. Say hello to the room.</p>}
+              {messages.map((message) => (
+                <div className="chat-item" key={message.id}>
+                  <div className="chat-meta">
+                    <strong>{message.playerName}</strong>
+                    <span>{formatMessageTime(message.createdAt)}</span>
+                  </div>
+                  <p>{message.messageText}</p>
+                </div>
+              ))}
+            </div>
+            <div className="row">
+              <input
+                value={chatMessage}
+                onChange={(event) => setChatMessage(event.target.value)}
+                maxLength={500}
+                placeholder="Type a room message"
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !busy) {
+                    event.preventDefault();
+                    void run(handleSendRoomMessage, "Message sent.");
+                  }
+                }}
+              />
+              <button disabled={busy || !chatMessage.trim()} onClick={() => run(handleSendRoomMessage, "Message sent.")}>
+                Send
+              </button>
+            </div>
+          </div>
         </div>}
 
         {feedback.error && <p className="message error">{feedback.error}</p>}
@@ -235,4 +333,17 @@ export default function App() {
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unexpected error.";
+}
+
+function formatMessageTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(date);
 }

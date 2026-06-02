@@ -64,3 +64,14 @@ create index if not exists idx_game_players_game_id on game_players(game_id);
 create index if not exists idx_game_board_cells_game_id on game_board_cells(game_id);
 create index if not exists idx_game_logs_game_id on game_logs(game_id);
 create index if not exists idx_games_updated_at on games(updated_at desc);
+
+create table if not exists room_messages (
+  id uuid primary key default gen_random_uuid(),
+  game_id uuid not null references games(id) on delete cascade,
+  user_id uuid not null references profiles(id) on delete cascade,
+  player_name text not null,
+  message_text text not null check (char_length(message_text) between 1 and 500),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_room_messages_game_id_created_at on room_messages(game_id, created_at asc);

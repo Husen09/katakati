@@ -32,6 +32,15 @@ export type ViewerGame = {
   updatedAt: string;
 };
 
+export type RoomMessage = {
+  id: string;
+  gameId: string;
+  userId: string;
+  playerName: string;
+  messageText: string;
+  createdAt: string;
+};
+
 export async function getProfile(session: Session): Promise<Profile> {
   const response = await apiRequest<{ profile: Profile }>("/auth/me", { session });
   return response.profile;
@@ -59,6 +68,20 @@ export async function joinGame(session: Session, roomCode: string): Promise<View
 export async function getGame(session: Session, gameId: string): Promise<ViewerGame> {
   const response = await apiRequest<{ game: ViewerGame }>(`/games/${gameId}`, { session });
   return response.game;
+}
+
+export async function listRoomMessages(session: Session, gameId: string): Promise<RoomMessage[]> {
+  const response = await apiRequest<{ messages: RoomMessage[] }>(`/games/${gameId}/messages`, { session });
+  return response.messages;
+}
+
+export async function sendRoomMessage(session: Session, gameId: string, message: string): Promise<RoomMessage> {
+  const response = await apiRequest<{ message: RoomMessage }>(`/games/${gameId}/messages`, {
+    method: "POST",
+    session,
+    body: { message }
+  });
+  return response.message;
 }
 
 export async function updateRange(session: Session, gameId: string, range: number): Promise<ViewerGame> {

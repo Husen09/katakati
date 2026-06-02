@@ -8,6 +8,7 @@ import {
 } from "@katrekat/game-core";
 import { requireAuth, type AuthenticatedRequest } from "./auth.js";
 import {
+  listRoomMessagesForUser,
   createGameForHost,
   getGameForUser,
   joinGameByRoomCode,
@@ -16,6 +17,7 @@ import {
   requireCurrentTurnPlayer,
   requireHost,
   resetGameForHost,
+  sendRoomMessageForUser,
   updateGameForUser
 } from "./gameStore.js";
 
@@ -68,6 +70,26 @@ export function createApp() {
     try {
       const profile = getProfile(req);
       res.json({ game: await getGameForUser(req.params.gameId, profile.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get("/games/:gameId/messages", async (req, res, next) => {
+    try {
+      const profile = getProfile(req);
+      res.json({ messages: await listRoomMessagesForUser(req.params.gameId, profile.id) });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/games/:gameId/messages", async (req, res, next) => {
+    try {
+      const profile = getProfile(req);
+      res.status(201).json({
+        message: await sendRoomMessageForUser(req.params.gameId, profile.id, String(req.body.message ?? ""))
+      });
     } catch (error) {
       next(error);
     }
