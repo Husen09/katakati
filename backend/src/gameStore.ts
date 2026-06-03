@@ -67,8 +67,9 @@ type UpdateContext = {
   isHost: boolean;
 };
 
-export async function createGameForHost(profile: Profile): Promise<ViewerGame> {
+export async function createGameForHost(profile: Profile, purpose?: string): Promise<ViewerGame> {
   const initialState = addPlayer(createGameState(), profile.displayName);
+  initialState.purpose = purpose || "TimePass";
   const hostPlayer = initialState.players[0];
 
   if (!hostPlayer) {

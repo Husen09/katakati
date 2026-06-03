@@ -17,7 +17,8 @@ import {
   type Profile,
   type RoomMessage,
   type ViewerGame,
-  updateRange
+  updateRange,
+  updatePurpose
 } from "./api";
 import { supabase } from "./supabase";
 
@@ -41,6 +42,11 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ error: "", ok: "Sign in to create or join a live room." });
+
+  const [selectedPurpose, setSelectedPurpose] = useState("TimePass");
+  const [customPurpose, setCustomPurpose] = useState("");
+  const [editingPurpose, setEditingPurpose] = useState(false);
+  const [purposeValue, setPurposeValue] = useState("");
 
   const state = activeGame?.state ?? emptyState;
   const results = useMemo(() => getResults(state), [state]);
@@ -169,9 +175,16 @@ export default function App() {
 
   async function handleCreateGame() {
     if (!session) throw new Error("Please sign in first.");
-    const game = await createGame(session);
+    const finalPurpose = selectedPurpose === "Custom" ? (customPurpose.trim() || "Custom Plan") : selectedPurpose;
+    const game = await createGame(session, finalPurpose);
     setActiveGame(game);
     await refreshMessages(session, game.id, true);
+    await refreshGames(session);
+  }
+
+  async function handleUpdatePurpose(purpose: string) {
+    if (!session || !activeGame) return;
+    setActiveGame(await updatePurpose(session, activeGame.id, purpose));
     await refreshGames(session);
   }
 
@@ -275,15 +288,300 @@ export default function App() {
 
         {!isSignedIn && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Access</p><h2>{authMode === "login" ? "Sign in" : "Create account"}</h2></div><button className="ghost" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>{authMode === "login" ? "Need an account?" : "Already have an account?"}</button></div><div className="stack compact">{authMode === "signup" && <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" />}<input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" /><button disabled={busy} onClick={() => run(handleAuthSubmit, authMode === "login" ? "Signed in." : "Account created.")}>{authMode === "login" ? "Sign in" : "Create account"}</button></div></div></div>}
 
-        {isSignedIn && !activeGame && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Lobby</p><h2>Welcome, {profile?.displayName}</h2></div><button className="ghost" onClick={() => run(handleLogout)}>Sign out</button></div><div className="actions"><button disabled={busy} onClick={() => run(handleCreateGame, "Room created.")}>Create room</button><div className="row"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="Room code" /><button disabled={busy} onClick={() => run(handleJoinGame, "Joined room.")}>Join room</button></div></div></div><div className="card"><div className="split"><h2>Your rooms</h2><button className="ghost" disabled={busy} onClick={() => session && run(() => refreshGames(session), "Rooms refreshed.")}>Refresh</button></div>{games.length === 0 && <p className="hero-copy">No rooms yet. Create one or join with a code.</p>}<div className="list">{games.map((game) => <button className="list-item interactive" key={game.id} onClick={() => run(() => handleOpenGame(game.id))}><span><strong>{game.roomCode}</strong></span><span>{game.playerCount} players</span><span>{game.status}</span><span>{game.isHost ? "Host" : "Joined"}</span></button>)}</div></div></div>}
+        {isSignedIn && !activeGame && (
+          <div className="stack">
+            <div className="card">
+              <div className="split">
+                <div>
+                  <p className="section-label">Lobby</p>
+                  <h2>Welcome, {profile?.displayName}</h2>
+                </div>
+                <button className="ghost" onClick={() => run(handleLogout)}>Sign out</button>
+              </div>
 
-        {isSignedIn && activeGame && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Room</p><h2>{activeGame.roomCode}</h2></div><div className="actions-inline"><button className="ghost" onClick={() => run(handleShareRoomCode)}>Share code</button><button className="ghost" disabled={busy} onClick={() => session && run(async () => { await refreshActiveGame(session, activeGame.id); await refreshMessages(session, activeGame.id, true); }, "Room refreshed.")}>Refresh</button><button className="ghost" onClick={() => { setActiveGame(null); setMessages([]); }}>Back to lobby</button></div></div><p className="hero-copy">Signed in as <strong>{activeGame.viewerName}</strong>. {activeGame.isHost ? "You are the host." : "Waiting on the host for room setup."}</p><p className="hero-copy">Share this room code with friends: <strong>{activeGame.roomCode}</strong></p></div>
+              <div className="actions" style={{ marginTop: "16px" }}>
+                <div className="purpose-selection-container">
+                  <span className="section-label" style={{ display: "block", marginBottom: "8px" }}>Purpose to play:</span>
+                  <div className="purpose-presets">
+                    {[
+                      { key: "Tea", label: "🍵 Tea" },
+                      { key: "Breakfast", label: "🍳 Breakfast" },
+                      { key: "Party", label: "🎉 Party" },
+                      { key: "TimePass", label: "🎮 TimePass" },
+                      { key: "Custom", label: "✍️ Custom Plan" }
+                    ].map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className={selectedPurpose === item.key ? "purpose-chip active" : "purpose-chip"}
+                        onClick={() => setSelectedPurpose(item.key)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                  {selectedPurpose === "Custom" && (
+                    <input
+                      value={customPurpose}
+                      onChange={(e) => setCustomPurpose(e.target.value)}
+                      placeholder="Enter custom purpose..."
+                      className="custom-purpose-input"
+                      maxLength={50}
+                      style={{ width: "100%", marginTop: "10px" }}
+                    />
+                  )}
+                </div>
 
-          {state.status === "setup" && <><div className="card"><div className="split"><h2>Choose range</h2><span className="badge">{state.range ? `1 - ${state.range}` : "Not chosen"}</span></div><div className="range-grid">{RANGES.map((range) => <button key={range} disabled={!activeGame.isHost || busy} className={state.range === range ? "chip chip-active" : "chip"} onClick={() => run(() => handleUpdateRange(range), `Range set to 1 - ${range}.`)}>1 - {range}</button>)}</div></div><div className="card"><div className="split"><h2>Players</h2><span className="badge">{state.players.length}/8</span></div><div className="list">{state.players.map((player, index) => <div className="list-item" key={player.id}><span>{index + 1}. {player.name}</span><span>{player.id === activeGame.viewerPlayerId ? "You" : "Joined"}</span></div>)}</div></div><button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleStartGame, "Secret phase started.")}>Start game</button></>}
+                <button disabled={busy} className="primary" onClick={() => run(handleCreateGame, "Room created.")}>
+                  Create room
+                </button>
 
-          {state.status === "secret" && activeSecretPlayer && <div className="card"><h2>Secret entry</h2><p>Player {state.secIdx + 1} of {state.players.length}: <strong>{activeSecretPlayer.name}</strong></p>{isViewerTurnForSecret ? <div className="row"><input type="number" min={1} max={state.range} value={secretValue} onChange={(event) => setSecretValue(event.target.value)} placeholder={`1 to ${state.range}`} /><button disabled={busy} onClick={() => run(handleSubmitSecret, "Secret locked in.")}>Lock in</button></div> : <p className="hero-copy">Waiting for {activeSecretPlayer.name} to choose a secret number.</p>}</div>}
+                <div className="divider-line">
+                  <span>OR JOIN WITH CODE</span>
+                </div>
 
-          {state.status === "guess" && activeTurnPlayer && <><div className="card"><h2>Guess phase</h2><p>Current turn: <strong>{activeTurnPlayer.name}</strong></p><p>Range: 1 - {state.range}</p><p className="hero-copy">{isViewerTurnForGuess ? "Pick a number from the board." : `Waiting for ${activeTurnPlayer.name} to move.`}</p></div><div className="card"><h2>Board</h2><div className="board">{state.board.map((cell) => <button key={cell.n} disabled={cell.gone || !isViewerTurnForGuess || busy} className={cell.gone ? "number number-gone" : "number"} onClick={() => run(() => handleSubmitGuess(cell.n))}>{cell.gone ? "" : cell.n}</button>)}</div></div><div className="card"><h2>Players</h2><div className="list">{state.players.map((player) => <div className="list-item" key={player.id}><span>{player.name}</span><span>{player.guessedBy ? `Found by ${player.guessedBy}` : "Still hiding"}</span></div>)}</div></div></>}
+                <div className="row">
+                  <input
+                    value={joinCode}
+                    onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                    placeholder="Room code"
+                  />
+                  <button disabled={busy} onClick={() => run(handleJoinGame, "Joined room.")}>
+                    Join room
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="card">
+              <div className="split">
+                <h2>Your rooms</h2>
+                <button className="ghost" disabled={busy} onClick={() => session && run(() => refreshGames(session), "Rooms refreshed.")}>
+                  Refresh
+                </button>
+              </div>
+              {games.length === 0 && <p className="hero-copy">No rooms yet. Create one or join with a code.</p>}
+              <div className="list">
+                {games.map((game) => (
+                  <button className="list-item interactive" key={game.id} onClick={() => run(() => handleOpenGame(game.id))}>
+                    <span><strong>{game.roomCode}</strong></span>
+                    <span>{game.playerCount} players</span>
+                    <span className="badge">{game.status}</span>
+                    <span>{game.isHost ? "👑 Host" : "Joined"}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isSignedIn && activeGame && (
+          <div className="stack">
+            <div className="card">
+              <div className="split">
+                <div>
+                  <p className="section-label">Room</p>
+                  <h2>{activeGame.roomCode}</h2>
+                </div>
+                <div className="actions-inline">
+                  <button className="ghost" onClick={() => run(handleShareRoomCode)}>Share code</button>
+                  <button className="ghost" disabled={busy} onClick={() => session && run(async () => { await refreshActiveGame(session, activeGame.id); await refreshMessages(session, activeGame.id, true); }, "Room refreshed.")}>Refresh</button>
+                  <button className="ghost" onClick={() => { setActiveGame(null); setMessages([]); }}>Back to lobby</button>
+                </div>
+              </div>
+              <p className="hero-copy">Signed in as <strong>{activeGame.viewerName}</strong>. {activeGame.isHost ? "You are the host." : "Waiting on the host for room setup."}</p>
+              <p className="hero-copy">Share this room code with friends: <strong>{activeGame.roomCode}</strong></p>
+            </div>
+
+            <div className="card room-purpose-card">
+              <span className="section-label">🎯 Room Purpose</span>
+              <div style={{ marginTop: "6px" }}>
+                {editingPurpose ? (
+                  <div className="row" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <input
+                      value={purposeValue}
+                      onChange={(e) => setPurposeValue(e.target.value)}
+                      placeholder="Enter room purpose..."
+                      maxLength={50}
+                      style={{ flex: 1 }}
+                    />
+                    <button className="compact-btn" onClick={() => run(async () => {
+                      await handleUpdatePurpose(purposeValue);
+                      setEditingPurpose(false);
+                    }, "Purpose updated.")}>Save</button>
+                    <button className="compact-btn ghost" onClick={() => setEditingPurpose(false)}>Cancel</button>
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span className="purpose-display-value">
+                      {state.purpose || "TimePass"}
+                    </span>
+                    {activeGame.isHost && state.status === "setup" && (
+                      <button className="ghost compact-btn" onClick={() => {
+                        setPurposeValue(state.purpose || "TimePass");
+                        setEditingPurpose(true);
+                      }}>
+                        ✏️ Edit
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {state.status === "setup" && (
+              <>
+                <div className="card">
+                  <div className="split">
+                    <h2>Choose range</h2>
+                    <span className="badge">{state.range ? `1 - ${state.range}` : "Not chosen"}</span>
+                  </div>
+                  <div className="range-grid">
+                    {RANGES.map((range) => (
+                      <button key={range} disabled={!activeGame.isHost || busy} className={state.range === range ? "chip chip-active" : "chip"} onClick={() => run(() => handleUpdateRange(range), `Range set to 1 - ${range}.`)}>1 - {range}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="card">
+                  <div className="split">
+                    <h2>Players</h2>
+                    <span className="badge">{state.players.length}/8</span>
+                  </div>
+                  <div className="list">
+                    {state.players.map((player, index) => (
+                      <div className="list-item" key={player.id}>
+                        <span>{index + 1}. {player.name}</span>
+                        <span>{player.id === activeGame.viewerPlayerId ? "You" : "Joined"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleStartGame, "Secret phase started.")}>
+                  Start game
+                </button>
+              </>
+            )}
+
+            {state.status === "secret" && activeSecretPlayer && (
+              <div className="card">
+                <h2>Secret entry</h2>
+                <p>Player {state.secIdx + 1} of {state.players.length}: <strong>{activeSecretPlayer.name}</strong></p>
+                {isViewerTurnForSecret ? (
+                  <div className="row">
+                    <input type="number" min={1} max={state.range} value={secretValue} onChange={(event) => setSecretValue(event.target.value)} placeholder={`1 to ${state.range}`} />
+                    <button disabled={busy} onClick={() => run(handleSubmitSecret, "Secret locked in.")}>Lock in</button>
+                  </div>
+                ) : (
+                  <p className="hero-copy">Waiting for {activeSecretPlayer.name} to choose a secret number.</p>
+                )}
+              </div>
+            )}
+
+            {state.status === "guess" && activeTurnPlayer && (() => {
+              const viewerPlayer = state.players.find((p) => p.id === activeGame.viewerPlayerId);
+              const viewerSecret = viewerPlayer?.secret;
+              const nextTurnIndex = (state.turn + 1) % state.players.length;
+              const nextPlayer = state.players[nextTurnIndex];
+
+              return (
+                <>
+                  <div className={`card turn-dashboard ${isViewerTurnForGuess ? "turn-active-glow" : ""}`}>
+                    <div className="split">
+                      <div>
+                        <h2>Guess Phase</h2>
+                        <p className="hero-copy" style={{ margin: "4px 0 0" }}>
+                          Range: 1 - {state.range}
+                        </p>
+                      </div>
+                      <div className="turn-indicators">
+                        <div className="turn-indicator-badge active-turn">
+                          <span className="dot pulse"></span>
+                          Active: <strong>{activeTurnPlayer.name}</strong> {isViewerTurnForGuess && "(You)"}
+                        </div>
+                        {nextPlayer && (
+                          <div className="turn-indicator-badge next-turn">
+                            Next up: <strong>{nextPlayer.name}</strong>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <p className="turn-instructions" style={{ marginTop: "12px", fontSize: "15px", color: isViewerTurnForGuess ? "#16606e" : "#5b6676" }}>
+                      {isViewerTurnForGuess ? "🎯 It's your turn! Pick a number from the board." : `⏳ Waiting for ${activeTurnPlayer.name} to make a guess.`}
+                    </p>
+                  </div>
+
+                  <div className="card">
+                    <div className="split">
+                      <h2>Board</h2>
+                      {viewerSecret !== undefined && viewerSecret !== null && (
+                        <span className="badge secret-badge">🔑 Your Secret: {viewerSecret}</span>
+                      )}
+                    </div>
+                    <div className="board" style={{ marginTop: "12px" }}>
+                      {state.board.map((cell) => {
+                        const isOwnSecret = cell.n === viewerSecret;
+                        return (
+                          <button
+                            key={cell.n}
+                            disabled={cell.gone || !isViewerTurnForGuess || isOwnSecret || busy}
+                            className={
+                              cell.gone
+                                ? "number number-gone"
+                                : isOwnSecret
+                                ? "number number-own-secret"
+                                : "number"
+                            }
+                            onClick={() => run(() => handleSubmitGuess(cell.n))}
+                            title={isOwnSecret ? "Your secret number (locked)" : undefined}
+                          >
+                            {cell.gone ? "" : isOwnSecret ? `🔒 ${cell.n}` : cell.n}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="card">
+                    <h2>Players</h2>
+                    <div className="player-status-grid" style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", marginTop: "12px" }}>
+                      {state.players.map((player) => {
+                        const isCurrent = player.id === activeTurnPlayer.id;
+                        const isSelf = player.id === activeGame.viewerPlayerId;
+                        return (
+                          <div
+                            className={`player-status-card ${isCurrent ? "current-turn" : ""} ${player.guessedBy ? "eliminated" : "alive"}`}
+                            key={player.id}
+                            style={{
+                              border: isCurrent ? "2px solid #16606e" : "1px solid #e0ddd4",
+                              background: player.guessedBy ? "#f1f5f9" : isCurrent ? "#edf4f6" : "#ffffff",
+                              borderRadius: "12px",
+                              padding: "12px 14px",
+                              position: "relative",
+                              opacity: player.guessedBy ? 0.6 : 1
+                            }}
+                          >
+                            <div className="player-info" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              <span style={{ fontWeight: 600, fontSize: "15px", color: "#1e2430" }}>
+                                {player.name} {isSelf && <span className="self-tag" style={{ color: "#16606e", fontSize: "12px", fontWeight: "normal" }}>(You)</span>}
+                              </span>
+                              {player.guessedBy ? (
+                                <span className="status-badge eliminated" style={{ color: "#a12f2f", fontSize: "13px", fontWeight: 600 }}>
+                                  ❌ Found by {player.guessedBy}
+                                </span>
+                              ) : (
+                                <span className="status-badge alive" style={{ color: "#12745a", fontSize: "13px", fontWeight: 600 }}>
+                                  🛡️ Hiding
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
           {state.status === "result" && <><div className="card"><h2>Results</h2><div className="list">{results.map((result) => <div className="result" key={result.playerId}><strong>{result.playerName}</strong><span>{result.status.toUpperCase()}</span><p>{result.subtitle}</p></div>)}</div></div><button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleResetGame, "Game reset for another round.")}>Play again</button></>}
 
@@ -322,7 +620,7 @@ export default function App() {
               </button>
             </div>
           </div>
-        </div>}
+        </div>)}
 
         {feedback.error && <p className="message error">{feedback.error}</p>}
         {!feedback.error && (feedback.ok || latestLog()) && <p className="message ok">{feedback.ok || latestLog()}</p>}

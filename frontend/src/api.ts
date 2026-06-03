@@ -51,8 +51,12 @@ export async function listGames(session: Session): Promise<GameSummary[]> {
   return response.games;
 }
 
-export async function createGame(session: Session): Promise<ViewerGame> {
-  const response = await apiRequest<{ game: ViewerGame }>("/games", { method: "POST", session });
+export async function createGame(session: Session, purpose?: string): Promise<ViewerGame> {
+  const response = await apiRequest<{ game: ViewerGame }>("/games", {
+    method: "POST",
+    session,
+    body: { purpose }
+  });
   return response.game;
 }
 
@@ -89,6 +93,15 @@ export async function updateRange(session: Session, gameId: string, range: numbe
     method: "POST",
     session,
     body: { range }
+  });
+  return response.game;
+}
+
+export async function updatePurpose(session: Session, gameId: string, purpose: string): Promise<ViewerGame> {
+  const response = await apiRequest<{ game: ViewerGame }>(`/games/${gameId}/purpose`, {
+    method: "POST",
+    session,
+    body: { purpose }
   });
   return response.game;
 }

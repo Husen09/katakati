@@ -7,8 +7,12 @@ export async function listGames(session) {
     const response = await apiRequest("/games", { session });
     return response.games;
 }
-export async function createGame(session) {
-    const response = await apiRequest("/games", { method: "POST", session });
+export async function createGame(session, purpose) {
+    const response = await apiRequest("/games", {
+        method: "POST",
+        session,
+        body: { purpose }
+    });
     return response.game;
 }
 export async function joinGame(session, roomCode) {
@@ -23,11 +27,31 @@ export async function getGame(session, gameId) {
     const response = await apiRequest(`/games/${gameId}`, { session });
     return response.game;
 }
+export async function listRoomMessages(session, gameId) {
+    const response = await apiRequest(`/games/${gameId}/messages`, { session });
+    return response.messages;
+}
+export async function sendRoomMessage(session, gameId, message) {
+    const response = await apiRequest(`/games/${gameId}/messages`, {
+        method: "POST",
+        session,
+        body: { message }
+    });
+    return response.message;
+}
 export async function updateRange(session, gameId, range) {
     const response = await apiRequest(`/games/${gameId}/range`, {
         method: "POST",
         session,
         body: { range }
+    });
+    return response.game;
+}
+export async function updatePurpose(session, gameId, purpose) {
+    const response = await apiRequest(`/games/${gameId}/purpose`, {
+        method: "POST",
+        session,
+        body: { purpose }
     });
     return response.game;
 }

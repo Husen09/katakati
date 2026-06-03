@@ -39,6 +39,7 @@ export type GameState = {
   turn: number;
   board: BoardCell[];
   logs: GameLog[];
+  purpose?: string;
 };
 
 export function createGameState(): GameState {
@@ -49,7 +50,8 @@ export function createGameState(): GameState {
     secIdx: 0,
     turn: 0,
     board: [],
-    logs: []
+    logs: [],
+    purpose: "TimePass"
   };
 }
 

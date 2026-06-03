@@ -49,7 +49,7 @@ export function createApp() {
   app.post("/games", async (req, res, next) => {
     try {
       const profile = getProfile(req);
-      const game = await createGameForHost(profile);
+      const game = await createGameForHost(profile, req.body.purpose ? String(req.body.purpose) : undefined);
       res.status(201).json({ game });
     } catch (error) {
       next(error);
@@ -101,6 +101,22 @@ export function createApp() {
       const game = await updateGameForUser(req.params.gameId, profile.id, (state, context) => {
         requireHost(context);
         return setRange(state, Number(req.body.range));
+      });
+      res.json({ game });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/games/:gameId/purpose", async (req, res, next) => {
+    try {
+      const profile = getProfile(req);
+      const game = await updateGameForUser(req.params.gameId, profile.id, (state, context) => {
+        requireHost(context);
+        return {
+          ...state,
+          purpose: String(req.body.purpose ?? "")
+        };
       });
       res.json({ game });
     } catch (error) {
