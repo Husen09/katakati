@@ -124,8 +124,8 @@ export async function listGamesForUser(userId: string): Promise<GameSummary[]> {
   }
 
   return (data ?? [])
-    .filter((game) => hasParticipant(game, userId))
-    .map((game) => ({
+    .filter((game: any) => hasParticipant(game, userId))
+    .map((game: any) => ({
       id: game.id,
       roomCode: game.room_code,
       status: game.status,
@@ -244,7 +244,7 @@ export async function listRoomMessagesForUser(gameId: string, userId: string): P
     throw new Error(error.message);
   }
 
-  return (data ?? []).map((entry) => ({
+  return (data ?? []).map((entry: any) => ({
     id: entry.id,
     gameId: entry.game_id,
     userId: entry.user_id,

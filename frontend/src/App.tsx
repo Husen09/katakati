@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { RANGES, getResults, type GameState } from "@katrekat/game-core";
 import type { Session } from "@supabase/supabase-js";
 import {
@@ -21,6 +21,28 @@ import {
   updatePurpose
 } from "./api";
 import { supabase } from "./supabase";
+
+function getPlayerColor(playerName: string, players: { name: string }[]) {
+  const index = players.findIndex(p => p.name.toLowerCase() === playerName.toLowerCase());
+  const colors = [
+    "#00e5ff", // Cyber Cyan
+    "#ec4899", // Pink
+    "#10b981", // Emerald
+    "#f59e0b", // Amber
+    "#a855f7", // Purple
+    "#ef4444", // Red/Rose
+    "#3b82f6", // Blue
+    "#eab308"  // Yellow
+  ];
+  if (index === -1) {
+    let hash = 0;
+    for (let i = 0; i < playerName.length; i++) {
+      hash = playerName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    return colors[Math.abs(hash) % colors.length];
+  }
+  return colors[index % colors.length];
+}
 
 type Feedback = { error: string; ok: string };
 
@@ -48,7 +70,13 @@ export default function App() {
   const [editingPurpose, setEditingPurpose] = useState(false);
   const [purposeValue, setPurposeValue] = useState("");
 
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
   const state = activeGame?.state ?? emptyState;
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages.length]);
   const results = useMemo(() => getResults(state), [state]);
   const activeSecretPlayer = state.players[state.secIdx];
   const activeTurnPlayer = state.players[state.turn];
@@ -70,7 +98,7 @@ export default function App() {
       }
     }
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: any, nextSession: any) => {
       setSession(nextSession);
       setProfile(null);
       setGames([]);
@@ -275,31 +303,93 @@ export default function App() {
   }
 
   if (loading) {
-    return <main className="page"><section className="panel"><p className="hero-copy">Connecting to the room service...</p></section></main>;
+    return (
+      <main className="page">
+        <section className="panel" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px" }}>
+            <span className="dot pulse" style={{ width: "16px", height: "16px" }}></span>
+            <p className="hero-copy" style={{ margin: 0, fontWeight: 600 }}>Syncing room service link...</p>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
     <main className="page">
       <section className="panel">
         <header className="hero">
-          <p className="eyebrow">Online Multiplayer</p>
+          <p className="eyebrow">Online Multiplayer Arena</p>
           <h1>Number Guess</h1>
         </header>
 
-        {!isSignedIn && <div className="stack"><div className="card"><div className="split"><div><p className="section-label">Access</p><h2>{authMode === "login" ? "Sign in" : "Create account"}</h2></div><button className="ghost" onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}>{authMode === "login" ? "Need an account?" : "Already have an account?"}</button></div><div className="stack compact">{authMode === "signup" && <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" />}<input value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" /><button disabled={busy} onClick={() => run(handleAuthSubmit, authMode === "login" ? "Signed in." : "Account created.")}>{authMode === "login" ? "Sign in" : "Create account"}</button></div></div></div>}
+        {!isSignedIn && (
+          <div className="stack">
+            <div className="card" style={{ maxWidth: "480px", margin: "0 auto", width: "100%" }}>
+              <div className="auth-title-container">
+                <p className="section-label">Security Portal</p>
+                <h2 style={{ fontSize: "24px", margin: "6px 0" }}>
+                  {authMode === "login" ? "Welcome Back" : "Initiate Account"}
+                </h2>
+              </div>
+              <div className="stack compact" style={{ marginTop: "20px" }}>
+                {authMode === "signup" && (
+                  <input
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Gamer handle / Display name"
+                  />
+                )}
+                <input
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="Email Address"
+                  type="email"
+                />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  placeholder="Password"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !busy) {
+                      void run(handleAuthSubmit, authMode === "login" ? "Signed in." : "Account created.");
+                    }
+                  }}
+                />
+                <button
+                  disabled={busy}
+                  style={{ marginTop: "10px" }}
+                  onClick={() => run(handleAuthSubmit, authMode === "login" ? "Signed in." : "Account created.")}
+                >
+                  {authMode === "login" ? "Enter Arena" : "Register Handle"}
+                </button>
+                <div style={{ textAlign: "center", marginTop: "12px", fontSize: "14px", color: "var(--text-muted)" }}>
+                  {authMode === "login" ? "New recruit? " : "Already registered? "}
+                  <button
+                    className="auth-swap-button"
+                    onClick={() => setAuthMode(authMode === "login" ? "signup" : "login")}
+                  >
+                    {authMode === "login" ? "Create an account" : "Sign in here"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {isSignedIn && !activeGame && (
           <div className="stack">
             <div className="card">
               <div className="split">
                 <div>
-                  <p className="section-label">Lobby</p>
+                  <p className="section-label">Lobby Control</p>
                   <h2>Welcome, {profile?.displayName}</h2>
                 </div>
                 <button className="ghost" onClick={() => run(handleLogout)}>Sign out</button>
               </div>
 
-              <div className="actions" style={{ marginTop: "16px" }}>
+              <div className="actions" style={{ marginTop: "20px" }}>
                 <div className="purpose-selection-container">
                   <span className="section-label" style={{ display: "block", marginBottom: "8px" }}>Purpose to play:</span>
                   <div className="purpose-presets">
@@ -345,6 +435,11 @@ export default function App() {
                     value={joinCode}
                     onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
                     placeholder="Room code"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !busy) {
+                        void run(handleJoinGame, "Joined room.");
+                      }
+                    }}
                   />
                   <button disabled={busy} onClick={() => run(handleJoinGame, "Joined room.")}>
                     Join room
@@ -355,18 +450,18 @@ export default function App() {
 
             <div className="card">
               <div className="split">
-                <h2>Your rooms</h2>
+                <h2>Your Rooms</h2>
                 <button className="ghost" disabled={busy} onClick={() => session && run(() => refreshGames(session), "Rooms refreshed.")}>
                   Refresh
                 </button>
               </div>
-              {games.length === 0 && <p className="hero-copy">No rooms yet. Create one or join with a code.</p>}
+              {games.length === 0 && <p className="hero-copy" style={{ textAlign: "center", margin: "24px 0" }}>No rooms yet. Create one or join with a code.</p>}
               <div className="list">
                 {games.map((game) => (
                   <button className="list-item interactive" key={game.id} onClick={() => run(() => handleOpenGame(game.id))}>
                     <span><strong>{game.roomCode}</strong></span>
                     <span>{game.playerCount} players</span>
-                    <span className="badge">{game.status}</span>
+                    <span className={`badge status-${game.status}`}>{game.status}</span>
                     <span>{game.isHost ? "👑 Host" : "Joined"}</span>
                   </button>
                 ))}
@@ -376,251 +471,392 @@ export default function App() {
         )}
 
         {isSignedIn && activeGame && (
-          <div className="stack">
-            <div className="card">
-              <div className="split">
-                <div>
-                  <p className="section-label">Room</p>
-                  <h2>{activeGame.roomCode}</h2>
-                </div>
-                <div className="actions-inline">
-                  <button className="ghost" onClick={() => run(handleShareRoomCode)}>Share code</button>
-                  <button className="ghost" disabled={busy} onClick={() => session && run(async () => { await refreshActiveGame(session, activeGame.id); await refreshMessages(session, activeGame.id, true); }, "Room refreshed.")}>Refresh</button>
-                  <button className="ghost" onClick={() => { setActiveGame(null); setMessages([]); }}>Back to lobby</button>
-                </div>
-              </div>
-              <p className="hero-copy">Signed in as <strong>{activeGame.viewerName}</strong>. {activeGame.isHost ? "You are the host." : "Waiting on the host for room setup."}</p>
-              <p className="hero-copy">Share this room code with friends: <strong>{activeGame.roomCode}</strong></p>
-            </div>
-
-            <div className="card room-purpose-card">
-              <span className="section-label">🎯 Room Purpose</span>
-              <div style={{ marginTop: "6px" }}>
-                {editingPurpose ? (
-                  <div className="row" style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <input
-                      value={purposeValue}
-                      onChange={(e) => setPurposeValue(e.target.value)}
-                      placeholder="Enter room purpose..."
-                      maxLength={50}
-                      style={{ flex: 1 }}
-                    />
-                    <button className="compact-btn" onClick={() => run(async () => {
-                      await handleUpdatePurpose(purposeValue);
-                      setEditingPurpose(false);
-                    }, "Purpose updated.")}>Save</button>
-                    <button className="compact-btn ghost" onClick={() => setEditingPurpose(false)}>Cancel</button>
-                  </div>
-                ) : (
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span className="purpose-display-value">
-                      {state.purpose || "TimePass"}
-                    </span>
-                    {activeGame.isHost && state.status === "setup" && (
-                      <button className="ghost compact-btn" onClick={() => {
-                        setPurposeValue(state.purpose || "TimePass");
-                        setEditingPurpose(true);
-                      }}>
-                        ✏️ Edit
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {state.status === "setup" && (
-              <>
+          <div className="active-room-layout">
+            <div className="stack">
+              {state.status === "setup" && (
                 <div className="card">
-                  <div className="split">
-                    <h2>Choose range</h2>
-                    <span className="badge">{state.range ? `1 - ${state.range}` : "Not chosen"}</span>
+                  <div className="split" style={{ marginBottom: "12px" }}>
+                    <h2>⚙️ Choose Number Range</h2>
+                    <span className="badge status-setup">{state.range ? `1 - ${state.range}` : "Not chosen"}</span>
                   </div>
+                  <p className="hero-copy" style={{ marginBottom: "20px" }}>
+                    Select the range limit. Players will submit their secrets and play guessing sweeps in this scope.
+                  </p>
                   <div className="range-grid">
                     {RANGES.map((range) => (
-                      <button key={range} disabled={!activeGame.isHost || busy} className={state.range === range ? "chip chip-active" : "chip"} onClick={() => run(() => handleUpdateRange(range), `Range set to 1 - ${range}.`)}>1 - {range}</button>
+                      <button
+                        key={range}
+                        disabled={!activeGame.isHost || busy}
+                        className={state.range === range ? "chip chip-active" : "chip"}
+                        onClick={() => run(() => handleUpdateRange(range), `Range set to 1 - ${range}.`)}
+                      >
+                        1 - {range}
+                      </button>
                     ))}
                   </div>
+                  {activeGame.isHost && (
+                    <button
+                      className="primary"
+                      style={{ marginTop: "24px" }}
+                      disabled={!state.range || state.players.length < 2 || busy}
+                      onClick={() => run(handleStartGame, "Secret phase started.")}
+                    >
+                      🚀 Start game
+                    </button>
+                  )}
                 </div>
+              )}
+
+              {state.status === "secret" && activeSecretPlayer && (
                 <div className="card">
-                  <div className="split">
-                    <h2>Players</h2>
-                    <span className="badge">{state.players.length}/8</span>
-                  </div>
-                  <div className="list">
-                    {state.players.map((player, index) => (
-                      <div className="list-item" key={player.id}>
-                        <span>{index + 1}. {player.name}</span>
-                        <span>{player.id === activeGame.viewerPlayerId ? "You" : "Joined"}</span>
+                  <h2>🔑 Secret Entry Phase</h2>
+                  <p style={{ fontSize: "16px", margin: "8px 0 16px" }}>
+                    Player {state.secIdx + 1} of {state.players.length}:{" "}
+                    <strong style={{ color: getPlayerColor(activeSecretPlayer.name, state.players), textShadow: `0 0 8px ${getPlayerColor(activeSecretPlayer.name, state.players)}40` }}>
+                      {activeSecretPlayer.name}
+                    </strong>
+                  </p>
+                  {isViewerTurnForSecret ? (
+                    <div className="stack compact">
+                      <p className="hero-copy" style={{ margin: 0 }}>
+                        Enter your secret number between <strong>1</strong> and <strong>{state.range}</strong>. Keep it hidden!
+                      </p>
+                      <div className="row">
+                        <input
+                          type="number"
+                          min={1}
+                          max={state.range}
+                          value={secretValue}
+                          onChange={(event) => setSecretValue(event.target.value)}
+                          placeholder={`1 to ${state.range}`}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !busy) {
+                              void run(handleSubmitSecret, "Secret locked in.");
+                            }
+                          }}
+                        />
+                        <button disabled={busy || !secretValue} onClick={() => run(handleSubmitSecret, "Secret locked in.")}>
+                          Lock Secret
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", background: "rgba(0, 0, 0, 0.15)", padding: "16px", borderRadius: "12px" }}>
+                      <span className="dot pulse" style={{ backgroundColor: getPlayerColor(activeSecretPlayer.name, state.players) }}></span>
+                      <p className="hero-copy" style={{ margin: 0 }}>
+                        Waiting for <strong>{activeSecretPlayer.name}</strong> to enter their secret number...
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleStartGame, "Secret phase started.")}>
-                  Start game
-                </button>
-              </>
-            )}
+              )}
 
-            {state.status === "secret" && activeSecretPlayer && (
-              <div className="card">
-                <h2>Secret entry</h2>
-                <p>Player {state.secIdx + 1} of {state.players.length}: <strong>{activeSecretPlayer.name}</strong></p>
-                {isViewerTurnForSecret ? (
-                  <div className="row">
-                    <input type="number" min={1} max={state.range} value={secretValue} onChange={(event) => setSecretValue(event.target.value)} placeholder={`1 to ${state.range}`} />
-                    <button disabled={busy} onClick={() => run(handleSubmitSecret, "Secret locked in.")}>Lock in</button>
-                  </div>
-                ) : (
-                  <p className="hero-copy">Waiting for {activeSecretPlayer.name} to choose a secret number.</p>
-                )}
-              </div>
-            )}
+              {state.status === "guess" && activeTurnPlayer && (() => {
+                const viewerPlayer = state.players.find((p) => p.id === activeGame.viewerPlayerId);
+                const viewerSecret = viewerPlayer?.secret;
+                const nextTurnIndex = (state.turn + 1) % state.players.length;
+                const nextPlayer = state.players[nextTurnIndex];
 
-            {state.status === "guess" && activeTurnPlayer && (() => {
-              const viewerPlayer = state.players.find((p) => p.id === activeGame.viewerPlayerId);
-              const viewerSecret = viewerPlayer?.secret;
-              const nextTurnIndex = (state.turn + 1) % state.players.length;
-              const nextPlayer = state.players[nextTurnIndex];
-
-              return (
-                <>
-                  <div className={`card turn-dashboard ${isViewerTurnForGuess ? "turn-active-glow" : ""}`}>
-                    <div className="split">
-                      <div>
-                        <h2>Guess Phase</h2>
-                        <p className="hero-copy" style={{ margin: "4px 0 0" }}>
-                          Range: 1 - {state.range}
-                        </p>
-                      </div>
-                      <div className="turn-indicators">
-                        <div className="turn-indicator-badge active-turn">
-                          <span className="dot pulse"></span>
-                          Active: <strong>{activeTurnPlayer.name}</strong> {isViewerTurnForGuess && "(You)"}
+                return (
+                  <>
+                    <div className={`card turn-dashboard ${isViewerTurnForGuess ? "turn-active-glow" : ""}`}>
+                      <div className="split">
+                        <div>
+                          <h2>🎯 Guess Phase</h2>
+                          <p className="hero-copy" style={{ margin: "4px 0 0" }}>
+                            Range: <strong>1 - {state.range}</strong>
+                          </p>
                         </div>
-                        {nextPlayer && (
-                          <div className="turn-indicator-badge next-turn">
-                            Next up: <strong>{nextPlayer.name}</strong>
+                        <div className="turn-indicators">
+                          <div className="turn-indicator-badge active-turn">
+                            <span className="dot pulse" style={{ backgroundColor: getPlayerColor(activeTurnPlayer.name, state.players) }}></span>
+                            Active: <strong style={{ color: getPlayerColor(activeTurnPlayer.name, state.players), marginLeft: "4px" }}>{activeTurnPlayer.name}</strong> {isViewerTurnForGuess && "(You)"}
                           </div>
+                          {nextPlayer && (
+                            <div className="turn-indicator-badge next-turn">
+                              Next: <strong style={{ color: getPlayerColor(nextPlayer.name, state.players), marginLeft: "4px" }}>{nextPlayer.name}</strong>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="turn-instructions" style={{ marginTop: "16px", color: isViewerTurnForGuess ? "var(--color-cyan)" : "var(--text-muted)" }}>
+                        {isViewerTurnForGuess ? (
+                          <span>🎯 <strong>It's your turn!</strong> Choose an available number from the grid below.</span>
+                        ) : (
+                          <span>⏳ Waiting for <strong>{activeTurnPlayer.name}</strong> to make a guess.</span>
+                        )}
+                      </p>
+                    </div>
+
+                    <div className="card">
+                      <div className="split" style={{ marginBottom: "16px" }}>
+                        <h2>Radar Grid</h2>
+                        {viewerSecret !== undefined && viewerSecret !== null && (
+                          <span className="badge secret-badge">🔑 Your Secret: {viewerSecret}</span>
                         )}
                       </div>
+                      <div className="board">
+                        {state.board.map((cell) => {
+                          const isOwnSecret = cell.n === viewerSecret;
+                          return (
+                            <button
+                              key={cell.n}
+                              disabled={cell.gone || !isViewerTurnForGuess || isOwnSecret || busy}
+                              className={
+                                cell.gone
+                                  ? "number number-gone"
+                                  : isOwnSecret
+                                  ? "number number-own-secret"
+                                  : "number"
+                              }
+                              onClick={() => run(() => handleSubmitGuess(cell.n))}
+                              title={isOwnSecret ? "Your secret number (locked)" : undefined}
+                            >
+                              {cell.gone ? "" : isOwnSecret ? `🔒 ${cell.n}` : cell.n}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <p className="turn-instructions" style={{ marginTop: "12px", fontSize: "15px", color: isViewerTurnForGuess ? "#16606e" : "#5b6676" }}>
-                      {isViewerTurnForGuess ? "🎯 It's your turn! Pick a number from the board." : `⏳ Waiting for ${activeTurnPlayer.name} to make a guess.`}
-                    </p>
-                  </div>
+                  </>
+                );
+              })()}
 
-                  <div className="card">
-                    <div className="split">
-                      <h2>Board</h2>
-                      {viewerSecret !== undefined && viewerSecret !== null && (
-                        <span className="badge secret-badge">🔑 Your Secret: {viewerSecret}</span>
+              {state.status === "result" && (
+                <div className="card">
+                  <h2>🏆 Battle Results</h2>
+                  <div className="list" style={{ margin: "16px 0" }}>
+                    {results.map((result) => {
+                      const isWinner = result.status === "winner";
+                      return (
+                        <div key={result.playerId} className={`result ${isWinner ? "winner-border" : "loser-border"}`}>
+                          <div className="split">
+                            <span 
+                              style={{ 
+                                fontWeight: 800, 
+                                fontSize: "16px",
+                                color: getPlayerColor(result.playerName, state.players),
+                                textShadow: `0 0 8px ${getPlayerColor(result.playerName, state.players)}30`
+                              }}
+                            >
+                              {result.playerName}
+                            </span>
+                            <span className={`result-status ${result.status}`}>
+                              {isWinner ? "🥇 Winner" : "💀 Eliminated"}
+                            </span>
+                          </div>
+                          <p className="hero-copy" style={{ margin: "6px 0 0", fontSize: "14px" }}>
+                            {result.subtitle}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {activeGame.isHost && (
+                    <button className="primary" disabled={busy} onClick={() => run(handleResetGame, "Game reset for another round.")}>
+                      Play again
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="stack">
+              <div className="card">
+                <div className="split" style={{ marginBottom: "12px" }}>
+                  <div>
+                    <p className="section-label">Room ID</p>
+                    <h2 style={{ fontSize: "24px", margin: 0, color: "var(--color-cyan)" }}>{activeGame.roomCode}</h2>
+                  </div>
+                </div>
+                <div className="stack compact" style={{ fontSize: "14px", color: "var(--text-muted)" }}>
+                  <p style={{ margin: 0 }}>
+                    Signed in as{" "}
+                    <strong style={{ color: getPlayerColor(activeGame.viewerName, state.players), textShadow: `0 0 6px ${getPlayerColor(activeGame.viewerName, state.players)}30` }}>
+                      {activeGame.viewerName}
+                    </strong>
+                  </p>
+                  <p style={{ margin: 0 }}>
+                    {activeGame.isHost ? "👑 Room Host (You)" : "🎮 Joined"}
+                  </p>
+                </div>
+                <div className="actions-inline" style={{ marginTop: "18px" }}>
+                  <button className="ghost compact-btn" onClick={() => run(handleShareRoomCode)}>Copy Code</button>
+                  <button className="ghost compact-btn" disabled={busy} onClick={() => session && run(async () => { await refreshActiveGame(session, activeGame.id); await refreshMessages(session, activeGame.id, true); }, "Room refreshed.")}>Refresh</button>
+                  <button className="ghost compact-btn" onClick={() => { setActiveGame(null); setMessages([]); }}>Lobby</button>
+                </div>
+              </div>
+
+              <div className="card room-purpose-card">
+                <span className="section-label">🎯 Room Purpose</span>
+                <div style={{ marginTop: "8px" }}>
+                  {editingPurpose ? (
+                    <div className="stack compact">
+                      <input
+                        value={purposeValue}
+                        onChange={(e) => setPurposeValue(e.target.value)}
+                        placeholder="Enter room purpose..."
+                        maxLength={50}
+                      />
+                      <div className="row">
+                        <button className="compact-btn" onClick={() => run(async () => {
+                          await handleUpdatePurpose(purposeValue);
+                          setEditingPurpose(false);
+                        }, "Purpose updated.")}>Save</button>
+                        <button className="compact-btn ghost" onClick={() => setEditingPurpose(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                      <span className="purpose-display-value">
+                        {state.purpose || "TimePass"}
+                      </span>
+                      {activeGame.isHost && state.status === "setup" && (
+                        <button className="ghost compact-btn" onClick={() => {
+                          setPurposeValue(state.purpose || "TimePass");
+                          setEditingPurpose(true);
+                        }}>
+                          ✏️ Edit
+                        </button>
                       )}
                     </div>
-                    <div className="board" style={{ marginTop: "12px" }}>
-                      {state.board.map((cell) => {
-                        const isOwnSecret = cell.n === viewerSecret;
-                        return (
-                          <button
-                            key={cell.n}
-                            disabled={cell.gone || !isViewerTurnForGuess || isOwnSecret || busy}
-                            className={
-                              cell.gone
-                                ? "number number-gone"
-                                : isOwnSecret
-                                ? "number number-own-secret"
-                                : "number"
-                            }
-                            onClick={() => run(() => handleSubmitGuess(cell.n))}
-                            title={isOwnSecret ? "Your secret number (locked)" : undefined}
-                          >
-                            {cell.gone ? "" : isOwnSecret ? `🔒 ${cell.n}` : cell.n}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
+                  )}
+                </div>
+              </div>
 
-                  <div className="card">
-                    <h2>Players</h2>
-                    <div className="player-status-grid" style={{ display: "grid", gap: "10px", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", marginTop: "12px" }}>
+              {(state.status === "setup" || state.status === "guess" || state.status === "secret") && (
+                <div className="card">
+                  <div className="split" style={{ marginBottom: "14px" }}>
+                    <h2>👥 Squad Status</h2>
+                    <span className="badge">{state.players.length}/8</span>
+                  </div>
+                  
+                  {state.status === "setup" ? (
+                    <div className="list">
+                      {state.players.map((player, index) => (
+                        <div className="list-item" key={player.id} style={{ borderColor: getPlayerColor(player.name, state.players) + "25" }}>
+                          <span>
+                            <strong style={{ marginRight: "6px", color: "rgba(255,255,255,0.3)" }}>{index + 1}.</strong>
+                            <strong style={{ color: getPlayerColor(player.name, state.players) }}>{player.name}</strong>
+                          </span>
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                            {player.id === activeGame.viewerPlayerId ? "You" : "Joined"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="player-status-grid">
                       {state.players.map((player) => {
-                        const isCurrent = player.id === activeTurnPlayer.id;
+                        const isCurrent = state.status === "guess" && activeTurnPlayer && player.id === activeTurnPlayer.id;
                         const isSelf = player.id === activeGame.viewerPlayerId;
+                        const pColor = getPlayerColor(player.name, state.players);
                         return (
                           <div
                             className={`player-status-card ${isCurrent ? "current-turn" : ""} ${player.guessedBy ? "eliminated" : "alive"}`}
                             key={player.id}
                             style={{
-                              border: isCurrent ? "2px solid #16606e" : "1px solid #e0ddd4",
-                              background: player.guessedBy ? "#f1f5f9" : isCurrent ? "#edf4f6" : "#ffffff",
-                              borderRadius: "12px",
-                              padding: "12px 14px",
-                              position: "relative",
-                              opacity: player.guessedBy ? 0.6 : 1
+                              borderColor: isCurrent ? "var(--color-primary)" : (player.guessedBy ? "rgba(255,255,255,0.05)" : pColor + "30"),
+                              boxShadow: isCurrent ? `0 0 10px ${pColor}40` : "none"
                             }}
                           >
-                            <div className="player-info" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                              <span style={{ fontWeight: 600, fontSize: "15px", color: "#1e2430" }}>
-                                {player.name} {isSelf && <span className="self-tag" style={{ color: "#16606e", fontSize: "12px", fontWeight: "normal" }}>(You)</span>}
+                            <div className="player-info">
+                              <span style={{ fontWeight: 800, fontSize: "14px", color: pColor }}>
+                                {player.name} {isSelf && <span className="self-tag">(You)</span>}
                               </span>
                               {player.guessedBy ? (
-                                <span className="status-badge eliminated" style={{ color: "#a12f2f", fontSize: "13px", fontWeight: 600 }}>
+                                <span className="status-badge eliminated">
                                   ❌ Found by {player.guessedBy}
                                 </span>
                               ) : (
-                                <span className="status-badge alive" style={{ color: "#12745a", fontSize: "13px", fontWeight: 600 }}>
+                                <span className="status-badge alive">
                                   🛡️ Hiding
                                 </span>
                               )}
+                            </div>
+                            
+                            <div className="chat-avatar" style={{ 
+                              borderColor: pColor,
+                              boxShadow: `0 0 8px ${pColor}40`,
+                              background: pColor + "15",
+                              color: pColor
+                            }}>
+                              {player.name.substring(0, 2).toUpperCase()}
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  </div>
-                </>
-              );
-            })()}
-
-          {state.status === "result" && <><div className="card"><h2>Results</h2><div className="list">{results.map((result) => <div className="result" key={result.playerId}><strong>{result.playerName}</strong><span>{result.status.toUpperCase()}</span><p>{result.subtitle}</p></div>)}</div></div><button className="primary" disabled={!activeGame.isHost || busy} onClick={() => run(handleResetGame, "Game reset for another round.")}>Play again</button></>}
-
-          <div className="card">
-            <div className="split">
-              <h2>Room chat</h2>
-              <span className="badge">{messages.length} message{messages.length === 1 ? "" : "s"}</span>
-            </div>
-            <div className="chat-list">
-              {messages.length === 0 && <p className="hero-copy">No messages yet. Say hello to the room.</p>}
-              {messages.map((message) => (
-                <div className="chat-item" key={message.id}>
-                  <div className="chat-meta">
-                    <strong>{message.playerName}</strong>
-                    <span>{formatMessageTime(message.createdAt)}</span>
-                  </div>
-                  <p>{message.messageText}</p>
+                  )}
                 </div>
-              ))}
-            </div>
-            <div className="row">
-              <input
-                value={chatMessage}
-                onChange={(event) => setChatMessage(event.target.value)}
-                maxLength={500}
-                placeholder="Type a room message"
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !busy) {
-                    event.preventDefault();
-                    void run(handleSendRoomMessage, "Message sent.");
-                  }
-                }}
-              />
-              <button disabled={busy || !chatMessage.trim()} onClick={() => run(handleSendRoomMessage, "Message sent.")}>
-                Send
-              </button>
+              )}
+
+              <div className="card chat-container">
+                <div className="split" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "10px" }}>
+                  <h2>💬 Comm Link</h2>
+                  <span className="badge">{messages.length}</span>
+                </div>
+                
+                <div className="chat-list">
+                  {messages.length === 0 && (
+                    <p className="hero-copy" style={{ textAlign: "center", marginTop: "40px", fontSize: "14px" }}>
+                      📡 Secure connection active. Say hello.
+                    </p>
+                  )}
+                  {messages.map((message) => {
+                    const isSelf = message.playerName === activeGame.viewerName;
+                    const pColor = getPlayerColor(message.playerName, state.players);
+                    return (
+                      <div className={`chat-bubble-wrapper ${isSelf ? "self" : "other"}`} key={message.id}>
+                        {!isSelf && (
+                          <div className="chat-avatar" style={{ 
+                            borderColor: pColor, 
+                            color: pColor,
+                            background: pColor + "15"
+                          }}>
+                            {message.playerName.substring(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="chat-bubble">
+                          {!isSelf && (
+                            <span className="chat-sender" style={{ color: pColor }}>
+                              {message.playerName}
+                            </span>
+                          )}
+                          <p className="chat-message-text">{message.messageText}</p>
+                          <span className="chat-time">{formatMessageTime(message.createdAt)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+                
+                <div className="row" style={{ marginTop: "10px" }}>
+                  <input
+                    value={chatMessage}
+                    onChange={(event) => setChatMessage(event.target.value)}
+                    maxLength={500}
+                    placeholder="Broadcast message..."
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" && !busy) {
+                        event.preventDefault();
+                        void run(handleSendRoomMessage, "Message sent.");
+                      }
+                    }}
+                  />
+                  <button 
+                    disabled={busy || !chatMessage.trim()} 
+                    onClick={() => run(handleSendRoomMessage, "Message sent.")}
+                    style={{ padding: "12px 18px" }}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>)}
+        )}
 
         {feedback.error && <p className="message error">{feedback.error}</p>}
         {!feedback.error && (feedback.ok || latestLog()) && <p className="message ok">{feedback.ok || latestLog()}</p>}
